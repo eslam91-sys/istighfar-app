@@ -24,7 +24,10 @@ jobs:
       - name: Build APK
         run: |
           cd android
-          sed -i 's/networkTimeout=10000/networkTimeout=120000/' gradle/wrapper/gradle-wrapper.properties
+          P=gradle/wrapper/gradle-wrapper.properties
+          sed -i 's/networkTimeout=10000/networkTimeout=120000/' $P
+          sed -i -E 's|^distributionUrl=.*gradle-([0-9.]+)-(all\|bin)\.zip|distributionUrl=https\\://github.com/gradle/gradle-distributions/releases/download/v\1/gradle-\1-bin.zip|' $P
+          cat $P
           chmod +x gradlew
           for i in 1 2 3; do
             ./gradlew assembleDebug && break
