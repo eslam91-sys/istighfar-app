@@ -49,6 +49,9 @@ h1{font-size:1.5rem;margin:0;font-weight:700}
 .rrow{display:flex;justify-content:space-between;align-items:center;padding:6px 0}
 .rrow input{font:inherit;background:var(--bg);color:var(--ink);border:1.5px solid var(--ring);border-radius:10px;padding:4px 8px}
 #rem .btn{margin-top:8px;width:100%}
+.dua{margin-top:20px;background:var(--surface);border:1px solid var(--ring);border-radius:18px;padding:12px 14px;text-align:center}
+.dua h2{font-size:1rem;margin:0 0 6px}
+.dua p{margin:0;font-size:1.1rem;font-weight:600}
 button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -67,11 +70,12 @@ button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 <div class="row"><button class="btn" id="undo">تراجع</button><button class="btn" id="reset">تصفير هذا الورد</button></div>
 </section>
 <section class="week"><h2>آخر ٧ أيام</h2><div class="days" id="days"></div></section>
+<section class="dua"><h2>دعاء اليوم</h2><p id="dua"></p></section>
 <section class="week" id="rem"><h2>التذكيرات اليومية</h2>
 <div class="rrow"><label for="t-fajr">بعد الفجر</label><input type="time" id="t-fajr" value="05:30"></div>
 <div class="rrow"><label for="t-asr">بعد العصر</label><input type="time" id="t-asr" value="16:30"></div>
 <div class="rrow"><label for="t-sleep">قبل النوم</label><input type="time" id="t-sleep" value="22:30"></div>
-<button class="btn" id="saveRem">حفظ التذكيرات</button><div class="msg" id="remMsg"></div></section>
+<button class="btn" id="saveRem">حفظ التذكيرات</button><button class="btn" id="testRem">تجربة الصوت والإشعار</button><div class="msg" id="remMsg"></div></section>
 </main>
 <script>
 (function(){
@@ -137,24 +141,62 @@ render();
 var C=window.Capacitor||{};
 var LN=C.Plugins&&C.Plugins.LocalNotifications;
 var native=C.isNativePlatform&&C.isNativePlatform();
-var RK="istighfar-rem-v1";
-var ITEMS=[{id:1,k:"fajr",body:"حان وقت ورد الاستغفار بعد الفجر"},{id:2,k:"asr",body:"حان وقت ورد الاستغفار بعد العصر"},{id:3,k:"sleep",body:"سيد الاستغفار قبل النوم"}];
+var RK="istighfar-rem-v1",DAYS=30;
+var DUAS=[
+"رب اغفر لي وتب علي إنك أنت التواب الرحيم",
+"اللهم إنك عفو تحب العفو فاعف عني",
+"ربنا آتنا في الدنيا حسنة وفي الآخرة حسنة وقنا عذاب النار",
+"اللهم اغفر لي ذنبي كله دقه وجله وأوله وآخره وعلانيته وسره",
+"رب اغفر وارحم وأنت خير الراحمين",
+"اللهم اغفر لي وارحمني واهدني وعافني وارزقني",
+"اللهم إني ظلمت نفسي ظلمًا كثيرًا ولا يغفر الذنوب إلا أنت فاغفر لي مغفرة من عندك وارحمني إنك أنت الغفور الرحيم",
+"يا مقلب القلوب ثبت قلبي على دينك",
+"اللهم أصلح لي ديني الذي هو عصمة أمري",
+"لا إله إلا أنت سبحانك إني كنت من الظالمين",
+"اللهم آت نفسي تقواها وزكها أنت خير من زكاها أنت وليها ومولاها",
+"ربنا اغفر لنا ذنوبنا وإسرافنا في أمرنا وثبت أقدامنا",
+"رب أوزعني أن أشكر نعمتك التي أنعمت علي",
+"اللهم أعني على ذكرك وشكرك وحسن عبادتك",
+"اللهم اغفر للمؤمنين والمؤمنات والمسلمين والمسلمات الأحياء منهم والأموات"
+];
+var SL=[{k:"fajr",n:1,body:"حان وقت ورد الاستغفار بعد الفجر"},{k:"asr",n:2,body:"حان وقت ورد الاستغفار بعد العصر"},{k:"sleep",n:3,body:"حان وقت سيد الاستغفار قبل النوم"}];
+function dayNum(d){return Math.floor(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())/86400000)}
+document.getElementById("dua").textContent="«"+DUAS[dayNum(new Date())%DUAS.length]+"»";
 var saved={};try{saved=JSON.parse(localStorage.getItem(RK)||"{}")}catch(e){}
-ITEMS.forEach(function(i){if(saved[i.k])document.getElementById("t-"+i.k).value=saved[i.k]});
+SL.forEach(function(i){if(saved[i.k])document.getElementById("t-"+i.k).value=saved[i.k]});
 function say(t){document.getElementById("remMsg").textContent=t}
+function readTimes(){var t={};SL.forEach(function(i){t[i.k]=document.getElementById("t-"+i.k).value||"00:00"});return t}
+async function ensure(ask){
+if(!native||!LN)return "web";
+var perm=await LN.checkPermissions();
+if(perm.display!=="granted"){if(!ask)return "noperm";perm=await LN.requestPermissions();if(perm.display!=="granted")return "noperm"}
+try{await LN.createChannel({id:"istighfar",name:"ورد الاستغفار",description:"تذكير بالأذكار والأدعية",importance:5,sound:"chime.wav",vibration:true,visibility:1})}catch(e){}
+return "ok"}
+async function schedule(times,ask){
+var r=await ensure(ask);if(r!=="ok")return r;
+var pend=await LN.getPending();
+if(pend.notifications&&pend.notifications.length)await LN.cancel({notifications:pend.notifications.map(function(n){return{id:n.id}})});
+var list=[],now=Date.now();
+for(var d=0;d<DAYS;d++){SL.forEach(function(s){
+var p=times[s.k].split(":");var at=new Date();at.setDate(at.getDate()+d);at.setHours(parseInt(p[0],10),parseInt(p[1],10),0,0);
+if(at.getTime()<=now)return;
+var body=s.body+"\n«"+DUAS[(dayNum(at)+s.n*5)%DUAS.length]+"»";
+list.push({id:s.n*1000+d,title:"ورد الاستغفار",body:body,largeBody:body,channelId:"istighfar",sound:"chime.wav",schedule:{at:at,allowWhileIdle:true}})})}
+if(list.length)await LN.schedule({notifications:list});
+return "ok"}
 document.getElementById("saveRem").onclick=async function(){
-var times={};ITEMS.forEach(function(i){times[i.k]=document.getElementById("t-"+i.k).value||"00:00"});
+var times=readTimes();
 try{localStorage.setItem(RK,JSON.stringify(times))}catch(e){}
-if(!native||!LN){say("التذكيرات تعمل داخل تطبيق أندرويد فقط");return}
-try{
-var perm=await LN.requestPermissions();
-if(perm.display!=="granted"){say("فعّل إذن الإشعارات للتطبيق من إعدادات الهاتف");return}
-await LN.cancel({notifications:ITEMS.map(function(i){return{id:i.id}})});
-await LN.schedule({notifications:ITEMS.map(function(i){var p=times[i.k].split(":");
-return{id:i.id,title:"ورد الاستغفار",body:i.body,schedule:{on:{hour:parseInt(p[0],10),minute:parseInt(p[1],10)},allowWhileIdle:true}}})});
-say("تم ضبط التذكيرات اليومية")
-}catch(e){say("تعذّر ضبط التذكيرات")}
-};
+try{var r=await schedule(times,true);
+say(r==="ok"?"تم ضبط التذكيرات للثلاثين يومًا القادمة":r==="noperm"?"فعّل إذن الإشعارات للتطبيق من إعدادات الهاتف":"التذكيرات تعمل داخل تطبيق أندرويد فقط")}
+catch(e){say("تعذّر ضبط التذكيرات")}};
+document.getElementById("testRem").onclick=async function(){
+try{var r=await ensure(true);
+if(r==="web"){say("التجربة تعمل داخل تطبيق أندرويد فقط");return}
+if(r!=="ok"){say("فعّل إذن الإشعارات للتطبيق من إعدادات الهاتف");return}
+await LN.schedule({notifications:[{id:9999,title:"ورد الاستغفار",body:"«"+DUAS[0]+"»",channelId:"istighfar",sound:"chime.wav",schedule:{at:new Date(Date.now()+5000),allowWhileIdle:true}}]});
+say("سيصلك إشعار تجريبي بعد 5 ثوانٍ")}catch(e){say("تعذّرت التجربة")}};
+if(saved.fajr){schedule(readTimes(),false).catch(function(){})}
 })();
 </script>
 </body>
