@@ -20,6 +20,37 @@ jobs:
         run: |
           M=android/app/src/main/AndroidManifest.xml
           sed -i 's#</manifest>#    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>\n    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>\n</manifest>#' "$M"
+      - name: Create notification sound
+        run: |
+          mkdir -p android/app/src/main/res/raw
+          python3 - <<'PY'
+          import wave, math, struct
+          sr = 22050
+          def bell(f, dur, amp):
+              out = []
+              for i in range(int(sr * dur)):
+                  t = i / sr
+                  env = math.exp(-3.0 * t) * min(1.0, t * 200)
+                  v = (math.sin(2 * math.pi * f * t)
+                       + 0.4 * math.sin(2 * math.pi * f * 2.01 * t) * math.exp(-2 * t)
+                       + 0.2 * math.sin(2 * math.pi * f * 3 * t) * math.exp(-4 * t))
+                  out.append(amp * env * v)
+              return out
+          total = [0.0] * int(sr * 2.8)
+          for i, v in enumerate(bell(659.25, 1.6, 0.35)):
+              total[i] += v
+          off = int(sr * 0.45)
+          for i, v in enumerate(bell(880.0, 2.0, 0.35)):
+              if off + i < len(total):
+                  total[off + i] += v
+          w = wave.open("android/app/src/main/res/raw/chime.wav", "wb")
+          w.setnchannels(1)
+          w.setsampwidth(2)
+          w.setframerate(sr)
+          w.writeframes(b"".join(struct.pack("<h", int(max(-1.0, min(1.0, x)) * 32000)) for x in total))
+          w.close()
+          PY
+          ls -l android/app/src/main/res/raw
       - run: npx cap sync android
       - name: Download Gradle
         run: |
