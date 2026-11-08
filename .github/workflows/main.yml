@@ -21,18 +21,35 @@ jobs:
           M=android/app/src/main/AndroidManifest.xml
           sed -i 's#</manifest>#    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>\n    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>\n</manifest>#' "$M"
       - run: npx cap sync android
+      - name: Download Gradle
+        run: |
+          for u in \
+            https://services.gradle.org/distributions/gradle-8.2.1-bin.zip \
+            https://downloads.gradle.org/distributions/gradle-8.2.1-bin.zip \
+            https://github.com/gradle/gradle-distributions/releases/download/v8.2.1/gradle-8.2.1-bin.zip \
+            https://mirrors.cloud.tencent.com/gradle/gradle-8.2.1-bin.zip \
+            https://repo.huaweicloud.com/gradle/gradle-8.2.1-bin.zip
+          do
+            echo "Trying $u"
+            if curl -fL --retry 5 --retry-all-errors --retry-delay 10 --connect-timeout 30 -o /tmp/gradle.zip "$u" && unzip -tq /tmp/gradle.zip > /dev/null; then
+              echo "Downloaded OK"
+              exit 0
+            fi
+            rm -f /tmp/gradle.zip
+          done
+          echo "All mirrors failed"
+          exit 1
       - name: Build APK
         run: |
           cd android
           P=gradle/wrapper/gradle-wrapper.properties
-          sed -i 's/networkTimeout=10000/networkTimeout=120000/' $P
-          sed -i -E 's|^distributionUrl=.*gradle-([0-9.]+)-(all\|bin)\.zip|distributionUrl=https\\://github.com/gradle/gradle-distributions/releases/download/v\1/gradle-\1-bin.zip|' $P
-          cat $P
+          sed -i 's#^distributionUrl=.*#distributionUrl=file:///tmp/gradle.zip#' $P
+          sed -i 's#validateDistributionUrl=true#validateDistributionUrl=false#' $P
           chmod +x gradlew
           for i in 1 2 3; do
             ./gradlew assembleDebug && break
             if [ $i -eq 3 ]; then exit 1; fi
-            sleep 20
+            sleep 30
           done
       - uses: actions/upload-artifact@v4
         with:
