@@ -21,7 +21,16 @@ jobs:
           M=android/app/src/main/AndroidManifest.xml
           sed -i 's#</manifest>#    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>\n    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>\n</manifest>#' "$M"
       - run: npx cap sync android
-      - run: cd android && chmod +x gradlew && ./gradlew assembleDebug
+      - name: Build APK
+        run: |
+          cd android
+          sed -i 's/networkTimeout=10000/networkTimeout=120000/' gradle/wrapper/gradle-wrapper.properties
+          chmod +x gradlew
+          for i in 1 2 3; do
+            ./gradlew assembleDebug && break
+            if [ $i -eq 3 ]; then exit 1; fi
+            sleep 20
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: istighfar-apk
